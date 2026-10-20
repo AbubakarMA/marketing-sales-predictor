@@ -8,3 +8,4 @@ matplotlib
 httpx 
 fastapi
 uvicorn
+requests == 2.34.2
