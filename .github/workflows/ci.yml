@@ -36,3 +36,6 @@ jobs:
 
       - name: Build Docker image
         run: docker build -t marketing-sales-predictor:ci .
+
+      - name: Build FastAPI Docker image
+        run: docker build -f Dockerfile.api -t marketing-sales-api .
