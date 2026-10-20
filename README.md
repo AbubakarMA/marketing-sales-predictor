@@ -1,145 +1,126 @@
 # Marketing Sales Predictor
 
-An end-to-end Machine Learning and MLOps project that predicts sales volume based on TV advertising expenditure.
+An end-to-end machine learning and MLOps portfolio project predicting sales volume from TV advertising expenditure using linear regression. It includes model development from scratch, evaluation, an independently deployed FastAPI inference backend, a Streamlit frontend, automated tests, and Dockerized deployments.
 
-This project demonstrates how to develop a linear regression model from scratch, evaluate it against a baseline and Scikit-learn, serve predictions through Streamlit, containerize the application with Docker, and automate testing and builds using GitHub Actions.
+## Live Demo
 
-## Project Overview
+- **Streamlit application:** https://marketing-sales-predictor.onrender.com
+- **FastAPI Swagger documentation:** https://marketing-sales-api.onrender.com/docs
+- **API health check:** https://marketing-sales-api.onrender.com/health
 
-**Problem:** Estimate sales volume from TV advertising expenditure using historical advertising data.
+Enter a TV advertising budget (in thousands of US dollars) and click **Predict Sales**. For 100 ($100,000), the model predicts approximately **11.77 thousand units**. Free-hosted services may take some time to wake after inactivity.
 
-**Solution:** Build and evaluate a simple linear regression model, then deploy a prediction interface that loads a pretrained model.
+## Architecture
 
-**Technology:** Python, NumPy, Pandas, Scikit-learn, Streamlit, Matplotlib, Pytest, Docker, Git and GitHub Actions.
+```text
+Browser
+  |
+  v
+Streamlit frontend (Render, Dockerfile)
+  | HTTPS POST /predict  {"tv_budget": 100}
+  v
+FastAPI backend (Render, Dockerfile.api)
+  | Pydantic validation; Pandas input frame
+  v
+Saved Scikit-learn LinearRegression model (models/marketing_model.joblib)
+  |
+  v
+JSON response {"predicted_sales": 11.7726, "unit": "thousand_units"}
+```
 
-## Dataset
+Streamlit handles input and presentation only. FastAPI validates and serves predictions; the model is **not loaded in the frontend**. The frontend's `API_URL` environment variable points to the backend base URL.
 
-The project uses the classic Advertising dataset associated with _An Introduction to Statistical Learning_.
+## Dataset and Model
 
-The dataset contains 200 observations and four variables:
+The historical 200-row Advertising dataset associated with *An Introduction to Statistical Learning* has TV, Radio, Newspaper and Sales variables. This project uses only TV as a feature. An 80/20 train/test split with `random_state=42` was used.
 
-- TV advertising expenditure
-- Radio advertising expenditure
-- Newspaper advertising expenditure
-- Sales
+| Model | Test MAE (thousand units) |
+| --- | ---: |
+| Mean-sales baseline | 4.9625 |
+| Custom gradient descent | 2.44442 |
+| Scikit-learn LinearRegression | 2.44442 |
 
-The current model uses **TV advertising expenditure** as its only predictor.
+The custom and scikit-learn models reduce MAE by about **50.74%** compared with the mean baseline. The fitted line is `Sales ≈ 7.1196 + 0.04653 × TV`, with TV measured in thousands of dollars and Sales in thousands of units.
 
-The dataset is intended for statistical learning and demonstration. Predictions should not be interpreted as validated commercial sales forecasts or causal estimates of advertising effectiveness.
+## Tech Stack
 
-## Model Development
-
-Two linear regression implementations were evaluated:
-
-1. A custom NumPy implementation trained using gradient descent.
-2. Scikit-learn's `LinearRegression`.
-
-Data was divided into 80% training and 20% testing, with `random_state=42`.
-
-A simple mean-sales baseline was used as a reference.
-
-## Model Performance
-
-| Model                         | Test MAE |
-| ----------------------------- | -------: |
-| Mean baseline                 |   4.9625 |
-| Custom gradient descent       |  2.44442 |
-| Scikit-learn LinearRegression |  2.44442 |
-
-The regression models achieved approximately **50.74% lower test MAE** than the mean baseline.
-
-The fitted model is:
-
-`Predicted Sales = 7.1196 + 0.04653 × TV Advertising Expenditure`
-
-Advertising expenditure is measured in thousands of dollars, and sales are expressed in thousands of units.
-
-## Application
-
-The Streamlit application allows users to enter a TV advertising budget and receive a sales prediction from the saved Scikit-learn model.
-
-Example:
-
-- TV advertising budget: $100,000
-- Predicted sales: approximately 11.77 thousand units
-
-The model is loaded from a serialized artifact instead of being retrained for each prediction.
-
-## Engineering and MLOps
-
-- From-scratch gradient descent implementation
-- Feature standardization during custom model training
-- Model benchmarking
-- Joblib model persistence
-- Automated unit tests with Pytest
-- Regression tests for NumPy broadcasting errors
-- Docker containerization
-- GitHub Actions continuous integration
+Python, NumPy, Pandas, Scikit-learn, Joblib, FastAPI, Pydantic, Streamlit, Requests, Pytest, Docker, GitHub Actions, and Render.
 
 ## Run Locally
 
+Use Python 3.12 for compatibility with the deployed model dependencies. From the project root:
+
 ```bash
-git clone https://github.com/AbubakarMA/marketing-sales-predictor.git
-cd marketing-sales-predictor
 python -m pip install -r requirements.txt
+python -m pip install pytest
+uvicorn api.main:app --host 127.0.0.1 --port 8000
+```
+
+In another terminal:
+
+```bash
+# Windows PowerShell
+$env:API_URL = "http://127.0.0.1:8000"
 streamlit run app.py
 ```
 
-Alternatively, run with Docker:
+For the lean frontend dependencies alone: `python -m pip install -r requirements-frontend.txt`. The backend requires `requirements.txt` as used by `Dockerfile.api`.
+
+Or build and run independent Docker containers:
 
 ```bash
-docker build -t marketing-sales-predictor .
-docker run --rm -p 127.0.0.1:8501:8501 marketing-sales-predictor
+docker build -f Dockerfile.api -t marketing-sales-api .
+docker build -f Dockerfile -t marketing-sales-frontend .
+docker run --rm -p 127.0.0.1:8000:8000 marketing-sales-api
 ```
 
-Then visit `http://localhost:8501`.
+Then in another terminal:
 
-Use a supported Python environment with dependencies compatible with the saved model artifact.
+```bash
+# Windows PowerShell
+docker run --rm -p 127.0.0.1:8501:8501 -e API_URL=http://host.docker.internal:8000 marketing-sales-frontend
+```
 
-## Testing
+Browse to `http://127.0.0.1:8501`. On Docker Desktop, `host.docker.internal` allows the frontend container to contact the API published on the host.
 
-Run the unit test suite:
+## API Contract
+
+`GET /health` returns service status.
+
+`POST /predict` accepts JSON:
+
+```json
+{"tv_budget": 100}
+```
+
+Returns:
+
+```json
+{"predicted_sales": 11.7726, "unit": "thousand_units"}
+```
+
+Pydantic validates numeric budgets in the range 0–300. Invalid inputs return HTTP 422.
+
+## Testing and CI/CD
 
 ```bash
 python -m pytest -v
 ```
 
-The initial four unit tests verify predictions, invalid training input, broadcasting-safe MAE, and unequal-length validation.
-
-GitHub Actions automatically runs tests and builds the Docker image.
-
-## Live Demo
-
-Deployment is being finalized. The live application URL will be added after successful validation.
+Nine tests cover the API's health, valid and invalid inputs, regression predictions, and MAE edge cases. GitHub Actions runs Pytest and builds **both** Docker images on pushes and pull requests. Each Render service uses a separate Dockerfile from this repository.
 
 ## Limitations
 
-- The model uses only TV advertising expenditure.
-- The dataset is a historical educational benchmark.
-- Predictions outside the training distribution may be unreliable.
-- Predictions should not be used as evidence of advertising causation or guaranteed business performance.
+- Educational, historical benchmark, not a validated commercial forecasting model.
+- TV budget is the sole feature; the model does not account for other drivers of sales.
+- The estimated relationship is **not causal evidence** of advertising effectiveness or return on investment.
+- Out-of-distribution predictions may be unreliable; the API's 0–300 validation range does not guarantee every value is within the training distribution.
+- The public API has no authentication, rate limiting, or production-grade monitoring.
 
-## Future Improvements
+## Potential Improvements
 
-- Multiple regression features
-- Model versioning and reproducible training pipeline
-- Input distribution warnings
-- Additional integration tests
-- Model monitoring and retraining workflows
-
-
-## Live Demo
-
-Try the deployed application:
-
-https://marketing-sales-predictor.onrender.com
-
-Enter a TV advertising budget to obtain a predicted sales volume.
-
-The application is deployed on Render using Docker, with automated CI checks through GitHub Actions.
+Additional predictor variables, model version tracking, CI integration tests, readiness checks, API monitoring and alerting, and retraining workflows.
 
 ## Author
 
-**AbubakarMA**
-
-GitHub: https://github.com/AbubakarMA
+[AbubakarMA](https://github.com/AbubakarMA)
