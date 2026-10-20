@@ -127,6 +127,17 @@ Deployment is being finalized. The live application URL will be added after succ
 - Additional integration tests
 - Model monitoring and retraining workflows
 
+
+## Live Demo
+
+Try the deployed application:
+
+https://marketing-sales-predictor.onrender.com
+
+Enter a TV advertising budget to obtain a predicted sales volume.
+
+The application is deployed on Render using Docker, with automated CI checks through GitHub Actions.
+
 ## Author
 
 **AbubakarMA**
